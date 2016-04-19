@@ -15,6 +15,8 @@ class URLS {
   protected $start_time;
   protected $end_time;
   protected $total_time;
+  protected $responses;
+  protected $test_results;
 
   public function __construct() {
 
@@ -23,6 +25,50 @@ class URLS {
     $this->input_urls_headers = array();
     $this->input_urls_run_count = array();
     $this->url_test_summary = array();
+    $this->test_results = array();
+    // Borrowed from Drupal 7 - includes/common.inc
+    $this->responses = array(
+	  100 => 'Continue',
+	  101 => 'Switching Protocols',
+	  200 => 'OK',
+	  201 => 'Created',
+	  202 => 'Accepted',
+	  203 => 'Non-Authoritative Information',
+	  204 => 'No Content',
+	  205 => 'Reset Content',
+	  206 => 'Partial Content',
+	  300 => 'Multiple Choices',
+	  301 => 'Moved Permanently',
+	  302 => 'Found',
+	  303 => 'See Other',
+	  304 => 'Not Modified',
+	  305 => 'Use Proxy',
+	  307 => 'Temporary Redirect',
+	  400 => 'Bad Request',
+	  401 => 'Unauthorized',
+	  402 => 'Payment Required',
+	  403 => 'Forbidden',
+	  404 => 'Not Found',
+	  405 => 'Method Not Allowed',
+	  406 => 'Not Acceptable',
+	  407 => 'Proxy Authentication Required',
+	  408 => 'Request Time-out',
+	  409 => 'Conflict',
+	  410 => 'Gone',
+	  411 => 'Length Required',
+	  412 => 'Precondition Failed',
+	  413 => 'Request Entity Too Large',
+	  414 => 'Request-URI Too Large',
+	  415 => 'Unsupported Media Type',
+	  416 => 'Requested range not satisfiable',
+	  417 => 'Expectation Failed',
+	  500 => 'Internal Server Error',
+	  501 => 'Not Implemented',
+	  502 => 'Bad Gateway',
+	  503 => 'Service Unavailable',
+	  504 => 'Gateway Time-out',
+	  505 => 'HTTP Version not supported',
+    );
   }
 
   /**
@@ -32,11 +78,11 @@ class URLS {
   public function explanation() {
 
   	echo "\n";
-  	echo "******************************************************************** \n";
+  	echo "********************************************************************\n";
   	echo "\n";
-  	echo "*** URL TEST ***\n";
+  	echo "                   - URL ENPOINT TEST -                             \n";
   	echo "\n";
-  	echo "Please input URL(s) for the endpoint(s) that you would like to test. \n";
+  	echo "Please input URL(s) for the endpoint(s) that you would like to test.\n";
   	echo "URL input is gathered using the following input options: \n";
   	echo "\n";
   	echo "* URL. (Required) A valid http URL to an endpoint. \n";
@@ -46,7 +92,7 @@ class URLS {
   	echo "* Header 3. (Optional) Key:Value \n";
   	echo "* Header N. (Optional) Key:Value \n";
   	echo "\n";
-  	echo "******************************************************************** \n";
+  	echo "********************************************************************\n";
     echo "\n";
   }
 
@@ -125,6 +171,8 @@ class URLS {
 	  }
 	  // Add the headers to the url
 	  $this->input_urls_headers[] = $headers;
+	} else if (!empty($header_flag) && $header_flag === 'n') {
+	  echo "Sounds good. Moving On. \n";
 	} else {
 	  echo "Cannot understand user input. Skipping. \n";
 	}
@@ -136,7 +184,8 @@ class URLS {
   	if (!empty($continue) && $continue === 'y') {
   	  $this->gather_input();
   	} else {
-  	  echo "\n";
+  	  echo "\n\n";
+  	  echo "********** Collected Test Data *************\n";
   	  for ($i = 0; $i < count($this->input_urls); $i++) {
   	  	echo "URL: " . $this->input_urls[$i] . " \n";
   	  	if ($this->input_urls_method[$i]) {
@@ -162,15 +211,21 @@ class URLS {
    */
   public function execute() {
 
-  	echo "******* Executing Requests *******\n";
+    echo "\n\n";
+  	echo "********** Executing Requests **************\n";
   	echo "\n";
     for ($i = 0; $i < count($this->input_urls); $i++) {
-    	echo "URL: " . $this->input_urls[$i] . " \n";
+    	echo "********************************************\n";
+    	echo "REQUEST URL: " . $this->input_urls[$i] . " \n";
+        echo "********************************************\n";
 
 	    for ($e = 0; $e < $this->input_urls_run_count[$i]; $e++) {
 
 	      // Set the start time
+	      $status = 0;
 	      $this->set_start_time();
+	      echo "--------------------------------------------\n";
+	      echo "Sending Request...\n";
 	      $curl = curl_init(); 
 
 	      $headers = array();
@@ -197,10 +252,22 @@ class URLS {
 
 	      $curl_return = curl_exec($curl); 
 	      $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-	      echo "Satus: " . $status . " \n"; 
+	      if ($status) { 
+	      	echo "Request completed with status: " . $status . " => " . $this->responses[$status] ."\n";
+	      } else {
+	      	echo "Request failed.  Please check you the URL again.";
+	      }
 	      $this->set_end_time();
 	      echo "Total request time: " . $this->total_time . "\n";
+	      echo "--------------------------------------------\n\n";
 	      curl_close($curl); 
+
+	      // Add data to the test result array
+	      $this->test_results[$this->input_urls[$i]][] = array(
+	        'time' => $this->total_time,
+	        'status' => $status . " => " . $this->responses[$status],
+	        'url' => $this->input_urls[$i],
+	      );
 	    }
 	}
   }
@@ -229,4 +296,36 @@ class URLS {
     $this->end_time = $m_time;
     $this->total_time = ($this->end_time - $this->start_time);
   }
+
+  /**
+   * Utility function that displays the test results of all of the requests to the user
+   *
+   */
+  public function display_results() {
+
+  	echo "\n\n############# Test Results #################\n\n";
+
+    foreach ($this->test_results as $key => $value) {
+
+      echo "********************************************\n";
+      echo "Results for URL: " . $key . " \n";
+      echo "--------------------------------------------\n\n";
+
+      echo "The URL was requested " . count($this->test_results[$key]) . " time(s).\n";
+      $average_request_time = 0.0;
+      $request_fail_count = 0;
+      foreach ($value as $k1 => $v1) {
+      	$average_request_time += (float)$v1['time'];
+      	$status = (int)$v1['status'];
+      	if ($status >= 400) {
+      	  $request_fail_count += 1;
+      	}
+      }
+      echo "The average response time is: " . ($average_request_time / count($this->test_results[$key])) . "\n";
+      echo "The request failed " . $request_fail_count . " time(s).\n";
+      echo "\n\n";
+    }
+    
+  }
+
 }

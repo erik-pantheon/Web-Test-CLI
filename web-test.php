@@ -68,8 +68,9 @@ if ($url_test) {
   $url->explanation();
   $url->gather_input();
   $url->execute();
+  $url->display_results();
 }
 
-
-
+// Print output message
+exit("\n\n\n********* Web Test Script Exiting **********\n");
 ?>
